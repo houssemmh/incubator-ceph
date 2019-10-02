@@ -7,7 +7,7 @@
             analysis_module="org.eclipse.tracecompass.incubator.internal.ceph.core.stateprovider.CephAnalysisModule"
             applies_experiment="true"
             automatic="true"
-            id="org.eclipse.tracecompass.incubator.java.analysis.core.dosfsanalysismodule"
+            id="org.eclipse.tracecompass.incubator.java.analysis.core.cephanalysismodule"
             name="Ceph analysis">
          <tracetype
                class="org.eclipse.tracecompass.tmf.core.trace.experiment.TmfExperiment">

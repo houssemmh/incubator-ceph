@@ -16,7 +16,7 @@ public class CephAnalysisModule extends TmfStateSystemAnalysisModule {
     /**
      * Analysis ID, it should match that in the plugin.xml file
      */
-    public static final @NonNull String ID = "org.eclipse.tracecompass.incubator.java.analysis.core.dosfsanalysismodule"; //$NON-NLS-1$
+    public static final @NonNull String ID = "org.eclipse.tracecompass.incubator.java.analysis.core.cephanalysismodule"; //$NON-NLS-1$
 
     @SuppressWarnings("null")
     @Override

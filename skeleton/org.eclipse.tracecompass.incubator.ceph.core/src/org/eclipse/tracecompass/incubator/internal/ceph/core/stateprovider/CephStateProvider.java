@@ -11,7 +11,6 @@ import org.eclipse.tracecompass.tmf.core.event.ITmfEvent;
 import org.eclipse.tracecompass.tmf.core.statesystem.AbstractTmfStateProvider;
 import org.eclipse.tracecompass.tmf.core.statesystem.ITmfStateProvider;
 import org.eclipse.tracecompass.tmf.core.trace.ITmfTrace;
-import org.eclipse.tracecompass.tmf.ctf.core.CtfEnumPair;
 
 /**
 * @author hdaoud
@@ -90,6 +89,20 @@ public class CephStateProvider extends AbstractTmfStateProvider {
     private static final int VERSION = 1;
     private HashMap<String, HostInfo> hosts_info = new HashMap<>();
 
+    private static final String CONTEXT_VPID = "context._vpid"; //$NON-NLS-1$
+    private static final String CONTEXT_VTID = "context._vtid"; //$NON-NLS-1$
+    private static final String QUARK_STATUS = "status"; //$NON-NLS-1$
+    private static final String QUARK_MSG = "msg"; //$NON-NLS-1$
+    private static final String FIELD_EVENT = "event"; //$NON-NLS-1$
+    private static final String EVENT_PROCESS_START = "osd:opwq_process_start"; //$NON-NLS-1$
+    private static final String EVENT_PROCESS_FINISH = "osd:opwq_process_finish"; //$NON-NLS-1$
+    private static final String EVENT_ZIPKIN = "zipkin:timestamp"; //$NON-NLS-1$
+    private static final String ZIPKIN_ENQUEUE = "async enqueueing message"; //$NON-NLS-1$
+    private static final String ZIPKIN_WRITE = "async writing message"; //$NON-NLS-1$
+    private static final String ZIPKIN_OSD_REPLY = "osd op reply"; //$NON-NLS-1$
+    private static final String ZIPKIN_FINISH = "finish"; //$NON-NLS-1$
+    private static final String ZIPKIN_MSG_DESTRUCTED = "message destructed"; //$NON-NLS-1$
+
     /**
      * @param trace trace
      * @param layout layout
@@ -126,155 +139,66 @@ public class CephStateProvider extends AbstractTmfStateProvider {
             hostinfo = new HostInfo(hostname);
             hosts_info.put(hostname, hostinfo);
         }
-        /*
-        if (ts == event.getTrace().getEndTime().getValue()) {
-            show_network_stats(ts);
-        }
-        */
 
         switch (name) {
-        case "block_rq_insert": { //$NON-NLS-1$
-            Long tid = (Long) event.getContent().getField("context._tid").getValue(); //$NON-NLS-1$
-            Long dev = (Long) event.getContent().getField("dev").getValue(); //$NON-NLS-1$
-            Long sector = (Long) event.getContent().getField("sector").getValue(); //$NON-NLS-1$
-            Long nr_sector = (Long) event.getContent().getField("nr_sector").getValue(); //$NON-NLS-1$
-            DiskInfo diskinfo;
-            if (hostinfo.disks_info.containsKey(dev)) {
-                diskinfo = hostinfo.disks_info.get(dev);
-            } else {
-                diskinfo = new DiskInfo(dev);
-                hostinfo.disks_info.put(dev, diskinfo);
-            }
-
-            diskinfo.sectors.put(sector, new SectorInfo(sector, ts, nr_sector));
-        }
-            break;
-        case "block_rq_complete": { //$NON-NLS-1$
-            Long dev = (Long) event.getContent().getField("dev").getValue(); //$NON-NLS-1$
-            Long sector = (Long) event.getContent().getField("sector").getValue(); //$NON-NLS-1$
-            if (hostinfo.disks_info.containsKey(dev)) {
-                DiskInfo diskinfo = hostinfo.disks_info.get(dev);
-                if (diskinfo.sectors.containsKey(sector)) {
-                    SectorInfo sect = diskinfo.sectors.get(sector);
-                    sect.ts_end = ts;
-                    // System.out.println("sector " + sector + " is completed at " + ts);
-                }
-            }
-        }
-            break;
-/*
-        case "net_dev_queue": { //$NON-NLS-1$
-            Long tid = (Long) event.getContent().getField("context._tid").getValue(); //$NON-NLS-1$
-            String daddr = event.getContent().getField("network_header").getField("ipv4").getField("daddr").toString().replaceAll("\\s+", ""); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
-            daddr = daddr.split("daddr=")[1].split("\\[")[1].split("\\]")[0]; //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
-            daddr = daddr.replace(",", ".");
-            String saddr = event.getContent().getField("network_header").getField("ipv4").getField("saddr").toString().replaceAll("\\s+", ""); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
-            saddr = saddr.split("saddr=")[1].split("\\[")[1].split("\\]")[0]; //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
-            saddr = saddr.replace(",", ".");
-            String net_interface = (String) event.getContent().getField("name").getValue(); //$NON-NLS-1$
-            net_interface = saddr;
-            //Long dest_port = (Long)event.getContent().getField("network_header").getField("ipv4").getField("transport_header").getField("tcp").getField("dest_port").getValue();
-            Long size = (Long) event.getContent().getField("len").getValue(); //$NON-NLS-1$
-
-            NetworkInfo netinfo;
-            if (hostinfo.networks_info.containsKey(net_interface)) {
-                netinfo = hostinfo.networks_info.get(net_interface);
-            } else {
-                netinfo = new NetworkInfo(net_interface);
-                hostinfo.networks_info.put(net_interface, netinfo);
-            }
-
-            netinfo.packets.add(new PacketInfo(daddr, size));
-        }
-            break;
-            */
-        case "osd:opwq_process_start": { //$NON-NLS-1$
-            Long tid = (Long) event.getContent().getField("context._vtid").getValue(); //$NON-NLS-1$
-            Long pid = (Long) event.getContent().getField("context._vpid").getValue(); //$NON-NLS-1$
+        case EVENT_PROCESS_START: {
+            Long tid = (Long) event.getContent().getField(CONTEXT_VTID).getValue();
+            Long pid = (Long) event.getContent().getField(CONTEXT_VPID).getValue();
             int hostQuark = ss.getQuarkAbsoluteAndAdd(hostname);
             int pidQuark = ss.getQuarkRelativeAndAdd(hostQuark, pid.toString());
             int tidQuark = ss.getQuarkRelativeAndAdd(pidQuark, tid.toString());
-            int statusQuark = ss.getQuarkRelativeAndAdd(tidQuark, "status"); //$NON-NLS-1$
+            int statusQuark = ss.getQuarkRelativeAndAdd(tidQuark, QUARK_STATUS);
             ss.modifyAttribute(ts, TmfStateValue.newValueInt(1), statusQuark);
         }
             break;
-        case "osd:opwq_process_finish": { //$NON-NLS-1$
-            Long tid = (Long) event.getContent().getField("context._vtid").getValue(); //$NON-NLS-1$
-            Long pid = (Long) event.getContent().getField("context._vpid").getValue(); //$NON-NLS-1$
+        case EVENT_PROCESS_FINISH: {
+            Long tid = (Long) event.getContent().getField(CONTEXT_VTID).getValue();
+            Long pid = (Long) event.getContent().getField(CONTEXT_VPID).getValue();
             int hostQuark = ss.getQuarkAbsoluteAndAdd(hostname);
             int pidQuark = ss.getQuarkRelativeAndAdd(hostQuark, pid.toString());
             int tidQuark = ss.getQuarkRelativeAndAdd(pidQuark, tid.toString());
-            int statusQuark = ss.getQuarkRelativeAndAdd(tidQuark, "status"); //$NON-NLS-1$
+            int statusQuark = ss.getQuarkRelativeAndAdd(tidQuark, QUARK_STATUS);
             ss.modifyAttribute(ts, TmfStateValue.nullValue(), statusQuark);
         }
             break;
-        case "bfd_fsm__state_change": { //$NON-NLS-1$
-            Long session_id = (Long) event.getContent().getField("sid_m").getValue(); //$NON-NLS-1$
-            String nxt_state =  ((CtfEnumPair) event.getContent().getField("next_state").getValue()).getStringValue(); //$NON-NLS-1$
-            int hostQuark = ss.getQuarkAbsoluteAndAdd("bfd_fsm_sid");
-            int sessionQuark = ss.getQuarkRelativeAndAdd(hostQuark, String.format("%03d",session_id));
-            int statusQuark = ss.getQuarkRelativeAndAdd(sessionQuark, "status"); //$NON-NLS-1$
-            if (nxt_state.equalsIgnoreCase("Init")) {
-            ss.modifyAttribute(ts, TmfStateValue.newValueInt(11), statusQuark);
-            }
-            if (nxt_state.equalsIgnoreCase("Down")) {
-            ss.modifyAttribute(ts, TmfStateValue.newValueInt(12), statusQuark);
-            }
-            if (nxt_state.equalsIgnoreCase("Up")) {
-            ss.modifyAttribute(ts, TmfStateValue.newValueInt(13), statusQuark);
-            }
-        }
-            break;
 
-        case "hal__oam_prot_group": { //$NON-NLS-1$
-            Long session_id = (Long) event.getContent().getField("prot_id").getValue(); //$NON-NLS-1$
-            Long nxt_state =  (Long) event.getContent().getField("cur_stat_id").getValue();
-            int hostQuark = ss.getQuarkAbsoluteAndAdd("hal__oam_prot_group");
-            int sessionQuark = ss.getQuarkRelativeAndAdd(hostQuark, String.format("%03d",session_id));
-            int statusQuark = ss.getQuarkRelativeAndAdd(sessionQuark, "status"); //$NON-NLS-1$
-            ss.modifyAttribute(ts, TmfStateValue.newValueLong(nxt_state), statusQuark);
-            }
-                break;
-
-        case "zipkin:timestamp": { //$NON-NLS-1$
-            // Long tid = (Long) event.getContent().getField("context._vtid").getValue();
-            // //$NON-NLS-1$
-            Long pid = (Long) event.getContent().getField("context._vpid").getValue(); //$NON-NLS-1$
-            String eventStr = (String) event.getContent().getField("event").getValue();
+        case EVENT_ZIPKIN: {
+            Long pid = (Long) event.getContent().getField(CONTEXT_VPID).getValue();
+            String eventStr = (String) event.getContent().getField(FIELD_EVENT).getValue();
             int hostQuark = ss.getQuarkAbsoluteAndAdd(hostname);
             switch (eventStr) {
-            case "async enqueueing message": {
+            case ZIPKIN_ENQUEUE: {
                 int pidQuark = ss.getQuarkRelativeAndAdd(hostQuark, pid.toString());
-                int tidQuark = ss.getQuarkRelativeAndAdd(pidQuark, "msg");
-                int statusQuark = ss.getQuarkRelativeAndAdd(tidQuark, "status"); //$NON-NLS-1$
+                int tidQuark = ss.getQuarkRelativeAndAdd(pidQuark, QUARK_MSG);
+                int statusQuark = ss.getQuarkRelativeAndAdd(tidQuark, QUARK_STATUS);
                 ss.modifyAttribute(ts, TmfStateValue.newValueInt(2), statusQuark);
             }
                 break;
-            case "async writing message": {
+            case ZIPKIN_WRITE: {
                 int pidQuark = ss.getQuarkRelativeAndAdd(hostQuark, pid.toString());
-                int tidQuark = ss.getQuarkRelativeAndAdd(pidQuark, "msg");
-                int statusQuark = ss.getQuarkRelativeAndAdd(tidQuark, "status"); //$NON-NLS-1$
+                int tidQuark = ss.getQuarkRelativeAndAdd(pidQuark, QUARK_MSG);
+                int statusQuark = ss.getQuarkRelativeAndAdd(tidQuark, QUARK_STATUS);
                 ss.modifyAttribute(ts, TmfStateValue.newValueInt(3), statusQuark);
             }
                 break;
-            case "osd op reply": {
+            case ZIPKIN_OSD_REPLY: {
                 int pidQuark = ss.getQuarkRelativeAndAdd(hostQuark, pid.toString());
-                int tidQuark = ss.getQuarkRelativeAndAdd(pidQuark, "msg");
-                int statusQuark = ss.getQuarkRelativeAndAdd(tidQuark, "status"); //$NON-NLS-1$
+                int tidQuark = ss.getQuarkRelativeAndAdd(pidQuark, QUARK_MSG);
+                int statusQuark = ss.getQuarkRelativeAndAdd(tidQuark, QUARK_STATUS);
                 ss.updateOngoingState(TmfStateValue.newValueInt(4), statusQuark);
             }
                 break;
-            case "finish": {
+            case ZIPKIN_FINISH: {
                 int pidQuark = ss.getQuarkRelativeAndAdd(hostQuark, pid.toString());
-                int tidQuark = ss.getQuarkRelativeAndAdd(pidQuark, "msg");
-                int statusQuark = ss.getQuarkRelativeAndAdd(tidQuark, "status"); //$NON-NLS-1$
+                int tidQuark = ss.getQuarkRelativeAndAdd(pidQuark, QUARK_MSG);
+                int statusQuark = ss.getQuarkRelativeAndAdd(tidQuark, QUARK_STATUS);
                 ss.modifyAttribute(ts, TmfStateValue.nullValue(), statusQuark);
             }
                 break;
-            case "message destructed": {
+            case ZIPKIN_MSG_DESTRUCTED: {
                 int pidQuark = ss.getQuarkRelativeAndAdd(hostQuark, pid.toString());
-                int tidQuark = ss.getQuarkRelativeAndAdd(pidQuark, "msg");
-                int statusQuark = ss.getQuarkRelativeAndAdd(tidQuark, "status"); //$NON-NLS-1$
+                int tidQuark = ss.getQuarkRelativeAndAdd(pidQuark, QUARK_MSG);
+                int statusQuark = ss.getQuarkRelativeAndAdd(tidQuark, QUARK_STATUS);
                 ss.modifyAttribute(ts, TmfStateValue.nullValue(), statusQuark);
             }
                 break;
